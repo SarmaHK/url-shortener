@@ -28,7 +28,7 @@ async function checkSafeBrowsing(url) {
   }
 
   const endpoint = `https://safebrowsing.googleapis.com/v4/threatMatches:find?key=${SAFE_BROWSING_API_KEY}`;
-  
+
   const payload = {
     client: {
       clientId: "url-shortener",
@@ -36,8 +36,8 @@ async function checkSafeBrowsing(url) {
     },
     threatInfo: {
       threatTypes: [
-        "MALWARE", 
-        "SOCIAL_ENGINEERING", 
+        "MALWARE",
+        "SOCIAL_ENGINEERING",
         "UNWANTED_SOFTWARE"
       ],
       platformTypes: ["ANY_PLATFORM"],
@@ -54,7 +54,7 @@ async function checkSafeBrowsing(url) {
     // If Google finds a match, determine the threat type
     if (matches && matches.length > 0) {
       const threatType = matches[0].threatType;
-      
+
       if (threatType === "MALWARE") return "malware";
       if (threatType === "SOCIAL_ENGINEERING") return "phishing";
       if (threatType === "UNWANTED_SOFTWARE") return "unwanted";
@@ -87,10 +87,11 @@ mongoose.connect(dbUri)
   .catch(err => console.log(err));
 
 // start server
-const port = process.env.PORT || 3000;
-app.listen(port, () => {
-  console.log(`Server running on port ${port}`);
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
 });
+
 
 const Url = require("./models/Url"); // Import the Url model
 const { nanoid } = require("nanoid"); // Import the nanoid library
@@ -137,7 +138,7 @@ app.post("/shorten", async (req, res) => {
 
   // 🛡 Google Safe Browsing Check
   const safetyStatus = await checkSafeBrowsing(url);
-  
+
   // If the result is anything but "safe", we block it.
   // We allow "unknown" (API failures) so the server doesn't break if Google is down.
   if (safetyStatus !== "safe" && safetyStatus !== "unknown") {
@@ -253,3 +254,6 @@ app.delete("/shorten/:code", async (req, res) => {
   if (!deleted) return res.status(404).json({ error: "Not found" });
   res.status(204).send();
 });
+
+// Export the Express API for Vercel Serverless Functions
+module.exports = app;
