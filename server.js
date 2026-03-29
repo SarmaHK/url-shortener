@@ -95,9 +95,9 @@ if (process.env.NODE_ENV !== 'production') {
 
 
 const Url = require("./models/Url"); // Import the Url model
-const { nanoid } = require("nanoid"); // Import the nanoid library
 
-function generateReadableCode(url) {
+async function generateReadableCode(url) {
+  const { nanoid } = await import("nanoid");
   try {
     const parsed = new URL(url);
     let name = parsed.hostname.replace("www.", "").split(".")[0];
@@ -163,7 +163,7 @@ app.post("/shorten", async (req, res) => {
     shortCode = customCode;
   } else {
     do {
-      shortCode = generateReadableCode(url);
+      shortCode = await generateReadableCode(url);
     } while (await Url.findOne({ shortCode }));
   }
 
