@@ -94,3 +94,6 @@ This project is already pre-configured for Vercel!
 ## 📝 License
 
 This project is licensed under the MIT License.
+
+---
+*Built with lessons learned - Sarma HK ✍️*
