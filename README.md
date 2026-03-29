@@ -1,41 +1,96 @@
-# URL Shortener API
+# 🔗 Premium URL Shortener
 
-A beginner-friendly Node.js and Express API that takes long URLs and creates customized or randomized short links. This project uses MongoDB for database storage and `nanoid` for generating unique identifiers.
+A high-performance, full-stack URL shortener built with **Node.js, Express, and MongoDB**, featuring a beautiful glassmorphism UI, advanced security, link expiration, password protection, and automated Google Safe Browsing checks to prevent malicious links.
 
-## Features Added & Bugs Fixed
+Perfect for personal use, marketing campaigns, or as a polished SaaS MVP.
 
-Throughout the development of this project, several key improvements and features were implemented:
+---
 
-1. **Database Migration to MongoDB Atlas:** 
-   - Moved from a local MongoDB connection (`mongodb://127.0.0.1:27017`) to a cloud-based **MongoDB Atlas** database, fixing issues where the app would get stuck or fail to start without a local database installed.
+## ✨ Key Features
 
-2. **Custom URL Generation (`customCode`):**
-   - Added the ability for users to provide a `customCode` when making a POST request.
-   - Built-in availability checking: The API searches the database using `Url.findOne()` to ensure the desired custom short code isn't already taken before applying it.
+- **🎨 Beautiful UI**: A fully responsive, modern frontend designed with glassmorphism and smooth animations.
+- **🛡️ Secure Processing**:
+  - Validates URLs prior to processing.
+  - Automatically checks links against **Google Safe Browsing API** to block phishing and malware.
+  - Built-in **Rate Limiting** to prevent spam and abuse.
+- **🔐 Password Protection**: Secure your shortened URLs so only authorized users with the password can access the destination.
+- **⏳ Link Expiration**: Set links to automatically expire after 1 hour, 1 day, 7 days, or a custom amount of time.
+- **✨ Custom & Smart Aliases**: Users can define their own `customCode` (e.g., `/my-promo`), or the system will automatically generate a highly readable code based on the target website's domain (e.g., `googl-abcd`).
+- **📊 Link Analytics**: Built-in access tracking. The API tallies clicks every time a short link is used.
+- **🚀 Serverless Ready**: Designed, structured, and optimized out-of-the-box for seamless deployment on **Vercel** (`@vercel/node`).
 
-3. **"Relatable" Random Short Codes:**
-   - Implemented a `generateReadableCode()` function that creates highly relatable short links.
-   - If a custom code is not provided, the API automatically parses the long URL's hostname (e.g., extracting "google" from `https://www.google.com`), slices it to 5 characters, and appends a secure 4-character ID (using `nanoid(4)`).
+---
 
-4. **URL Format Validation:**
-   - Integrated Regex validation (`/^https?:\/\/.+/`) to verify that users are submitting valid `http` or `https` links before processing or saving them to the database.
+## 🛠️ Tech Stack
 
-5. **Code Cleanup & Refactoring:**
-   - Merged duplicated route handlers (`app.post('/shorten')` and `app.get('/:code')`) into single, streamlined routes.
-   - Fixed top-level execution errors by properly scoping all database interaction code inside of the endpoint functions.
-   - Maintained all original instructional/learning comments so the code remains easy to study and understand.
+- **Frontend**: Vanilla HTML, CSS, JavaScript
+- **Backend**: Node.js, Express.js
+- **Database**: MongoDB (via Mongoose)
+- **Security**: `bcrypt` (password hashing), `helmet` (HTTP headers), `express-rate-limit` (DDoS protection)
+- **Utilities**: `nanoid` (unique IDs), `axios` & `cheerio` (link preview scraping)
 
-## Endpoints
+---
 
-- **`POST /shorten`**: Submit a JSON body with `url` (and an optional `customCode`) to generate a new shortened link.
-- **`GET /:code`**: Access the short link. The server will automatically increment the `accessCount` and redirect the user to the original long URL.
-- **`GET /shorten/:code/stats`**: Retrieve statistics about the shortened link, including how many times it has been clicked.
-- **`PUT /shorten/:code`**: Update the destination URL for an existing short code.
-- **`DELETE /shorten/:code`**: Delete the URL entry entirely.
+## 🚀 Getting Started
 
-## Technologies Used
+### Prerequisites
+- [Node.js](https://nodejs.org/) (v16 or higher)
+- A [MongoDB database](https://www.mongodb.com/atlas/database) (Local or Cloud/Atlas)
+- A *Google Safe Browsing API Key* (Optional, but recommended)
 
-- **Node.js**: Backend runtime
-- **Express**: Web server framework
-- **Mongoose**: MongoDB Object Modeling Tool
-- **Nanoid**: Secure, URL-friendly unique ID generator
+### 1. Clone the Repository
+```bash
+git clone https://github.com/your-username/url-shortener.git
+cd url-shortener
+```
+
+### 2. Install Dependencies
+```bash
+npm install
+```
+
+### 3. Environment Variables
+Create a `.env` file in the root directory and add the following:
+```env
+PORT=5000
+MONGODB_URI=mongodb+srv://<username>:<password>@cluster.mongodb.net/urlShortener
+SAFE_BROWSING_API_KEY=your_google_api_key_here
+```
+
+### 4. Run Locally
+```bash
+npm run dev
+```
+Visit `http://localhost:5000` in your browser.
+
+---
+
+## 📡 API Reference
+
+All requests and responses use `application/json` format.
+
+| Method   | Endpoint                  | Description                                      | Requires Auth  |
+| -------- | ------------------------- | ------------------------------------------------ | -------------- |
+| `POST`   | `/preview`                | Fetches the Title & Description of a target URL. | No             |
+| `POST`   | `/shorten`                | Generates a new short URL.                       | No             |
+| `GET`    | `/:code`                  | Redirects the user to the underlying long URL.   | *(If expected)*|
+| `GET`    | `/shorten/:code/stats`    | Retrieves analytics and statistics for a link.   | No             |
+| `PUT`    | `/shorten/:code`          | Updates the destination of an existing short URL.| No             |
+| `DELETE` | `/shorten/:code`          | Deletes a shortened URL entirely.                | No             |
+
+---
+
+## ☁️ Deployment (Vercel)
+
+This project is already pre-configured for Vercel!
+
+1. Import your GitHub repository into [Vercel](https://vercel.com/new).
+2. Go to **Settings > Environment Variables** and add your `MONGODB_URI` and `SAFE_BROWSING_API_KEY`.
+3. *(Important!)* If using MongoDB Atlas, make sure to add `0.0.0.0/0` in your MongoDB **Network Access** settings to allow Vercel's Edge network to communicate with your database.
+4. Click **Deploy**. Vercel will automatically handle the routing and serve your Express API and static frontend files perfectly.
+
+---
+
+## 📝 License
+
+This project is licensed under the MIT License.
