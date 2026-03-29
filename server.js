@@ -1,3 +1,4 @@
+require('dotenv').config(); // Load environment variables from .env
 const express = require("express");
 const mongoose = require("mongoose");
 const path = require("path");
@@ -10,6 +11,65 @@ const app = express();
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
+// --- Google Safe Browsing Integration ---
+// Read API key from environment variables
+const SAFE_BROWSING_API_KEY = process.env.SAFE_BROWSING_API_KEY;
+
+/**
+ * Checks a URL against the Google Safe Browsing API.
+ * @param {string} url - The URL to check
+ * @returns {Promise<string>} - "safe", "malware", "phishing", "unwanted", or "unknown"
+ */
+async function checkSafeBrowsing(url) {
+  // If no API key is set, log and return unknown to prevent crashing
+  if (!SAFE_BROWSING_API_KEY) {
+    console.warn("⚠️ Missing SAFE_BROWSING_API_KEY in .env");
+    return "unknown";
+  }
+
+  const endpoint = `https://safebrowsing.googleapis.com/v4/threatMatches:find?key=${SAFE_BROWSING_API_KEY}`;
+  
+  const payload = {
+    client: {
+      clientId: "url-shortener",
+      clientVersion: "1.0.0"
+    },
+    threatInfo: {
+      threatTypes: [
+        "MALWARE", 
+        "SOCIAL_ENGINEERING", 
+        "UNWANTED_SOFTWARE"
+      ],
+      platformTypes: ["ANY_PLATFORM"],
+      threatEntryTypes: ["URL"],
+      threatEntries: [{ url }] // Send the URL to evaluate
+    }
+  };
+
+  try {
+    // Send POST request with a 2000ms timeout
+    const response = await axios.post(endpoint, payload, { timeout: 2000 });
+    const matches = response.data.matches;
+
+    // If Google finds a match, determine the threat type
+    if (matches && matches.length > 0) {
+      const threatType = matches[0].threatType;
+      
+      if (threatType === "MALWARE") return "malware";
+      if (threatType === "SOCIAL_ENGINEERING") return "phishing";
+      if (threatType === "UNWANTED_SOFTWARE") return "unwanted";
+    }
+
+    // No matches mean the URL is safe
+    return "safe";
+  } catch (error) {
+    // Handle API errors gracefully
+    console.error("Safe Browsing API Error:", error.message);
+    return "unknown";
+  }
+}
+// ----------------------------------------
+
 // Global Rate Limiter: Prevent spam & abuse
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
@@ -21,13 +81,15 @@ const limiter = rateLimit({
 app.use(limiter);
 
 // connect database
-mongoose.connect("mongodb+srv://sarmahk:2307@cluster0.qvy8cbw.mongodb.net/urlShortener?retryWrites=true&w=majority")
+const dbUri = process.env.MONGODB_URI || "mongodb://localhost:27017/urlShortener";
+mongoose.connect(dbUri)
   .then(() => console.log("DB Connected"))
   .catch(err => console.log(err));
 
 // start server
-app.listen(3000, () => {
-  console.log("Server running on port 3000");
+const port = process.env.PORT || 3000;
+app.listen(port, () => {
+  console.log(`Server running on port ${port}`);
 });
 
 const Url = require("./models/Url"); // Import the Url model
@@ -72,6 +134,15 @@ app.post("/shorten", async (req, res) => {
 
   const valid = /^https?:\/\/.+/;
   if (!valid.test(url)) return res.status(400).json({ error: "Invalid URL" });
+
+  // 🛡 Google Safe Browsing Check
+  const safetyStatus = await checkSafeBrowsing(url);
+  
+  // If the result is anything but "safe", we block it.
+  // We allow "unknown" (API failures) so the server doesn't break if Google is down.
+  if (safetyStatus !== "safe" && safetyStatus !== "unknown") {
+    return res.status(403).json({ error: "This URL is not allowed." });
+  }
 
   // Reuse Existing URL (if no extra parameters provided)
   if (!customCode && !password && !expiresIn) {
