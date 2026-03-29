@@ -87,9 +87,11 @@ mongoose.connect(dbUri)
 
 // --- SERVER STARTUP ---
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
-  console.log(`🚀 Server running on http://localhost:${PORT}`);
-});
+if (process.env.NODE_ENV !== 'production') {
+  app.listen(PORT, () => {
+    console.log(`🚀 Server running on http://localhost:${PORT}`);
+  });
+}
 
 
 const Url = require("./models/Url"); // Import the Url model
@@ -255,3 +257,6 @@ app.delete("/shorten/:code", async (req, res) => {
   if (!deleted) return res.status(404).json({ error: "Not found" });
   res.status(204).send();
 });
+
+// Export the Express API for Vercel
+module.exports = app;
