@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>URL Shortener</title>
+  <link rel="stylesheet" href="style.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+</head>
+<body>
+  
+  <main class="container">
+    <div class="card">
+      <div class="header">
+        <h1>URL Shortener</h1>
+        <p>Shorten your long links into clean, shareable URLs instantly.</p>
+      </div>
+
+      <form id="shortenForm" class="form-container">
+        
+        <div class="input-group">
+          <label for="longUrl">Original URL</label>
+          <input type="url" id="longUrl" placeholder="https://example.com/very/long/path..." required />
+        </div>
+
+        <div class="input-group">
+          <label for="customCode">Custom Short Code (Optional)</label>
+          <input type="text" id="customCode" placeholder="my-custom-link" />
+        </div>
+
+        <button type="submit" id="submitBtn">Shorten URL</button>
+      </form>
+
+      <div id="resultArea" class="result-area hidden">
+        <p class="success-text">Success! Here is your short URL:</p>
+        <div class="short-link-container">
+          <a id="shortUrlAnchor" href="#" target="_blank">http://localhost:3000/...</a>
+          <button id="copyBtn" class="secondary-btn">Copy</button>
+        </div>
+      </div>
+
+      <div id="errorArea" class="error-area hidden">
+        <p id="errorText">An error occurred.</p>
+      </div>
+
+    </div>
+  </main>
+
+  <script src="script.js"></script>
+</body>
+</html>
