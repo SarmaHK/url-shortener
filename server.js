@@ -203,6 +203,9 @@ app.get("/shorten/:code/stats", async (req, res) => {
   });
 });
 
+// Ignore favicon requests
+app.get(["/favicon.ico", "/favicon.png"], (req, res) => res.status(204).end());
+
 // 4. Redirect Route: Handle redirection when visiting a short link
 app.get("/:code", async (req, res) => {
   const url = await Url.findOne({ shortCode: req.params.code });
