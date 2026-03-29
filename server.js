@@ -1,10 +1,9 @@
-require('dotenv').config(); // Load environment variables from .env
 const express = require("express");
 const mongoose = require("mongoose");
 const path = require("path");
 const axios = require("axios");
 const cheerio = require("cheerio");
-const bcrypt = require("bcryptjs");
+const bcrypt = require("bcrypt");
 const rateLimit = require("express-rate-limit");
 
 const app = express();
@@ -86,13 +85,11 @@ mongoose.connect(dbUri)
   .then(() => console.log("DB Connected"))
   .catch(err => console.log(err));
 
-// start server locally (Vercel uses module.exports)
-if (process.env.NODE_ENV !== 'production') {
-  const PORT = process.env.PORT || 5000;
-  app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
-  });
-}
+// --- SERVER STARTUP ---
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => {
+  console.log(`🚀 Server running on http://localhost:${PORT}`);
+});
 
 
 const Url = require("./models/Url"); // Import the Url model
@@ -109,7 +106,9 @@ function generateReadableCode(url) {
   }
 }
 
-// 🟢 NEW: Preview route using Axios + Cheerio
+// --- ROUTES ---
+
+// 1. Preview Route: Fetch title and description from URL
 app.post("/preview", async (req, res) => {
   const { url } = req.body;
 
@@ -129,7 +128,7 @@ app.post("/preview", async (req, res) => {
   }
 });
 
-// 🟢 UPDATED: Shorten route with Expiry, Password, and Deduplication
+// 2. Shorten Route: Create a new short URL
 app.post("/shorten", async (req, res) => {
   const { url, customCode, password, expiresIn } = req.body;
 
@@ -188,7 +187,7 @@ app.post("/shorten", async (req, res) => {
   res.status(201).json(newUrl);
 });
 
-// 🟢 Define a GET route at /shorten/:code/stats
+// 3. Stats Route: Get access count and details
 app.get("/shorten/:code/stats", async (req, res) => {
   const url = await Url.findOne({ shortCode: req.params.code });
   if (!url) return res.status(404).json({ error: "Not found" });
@@ -202,7 +201,7 @@ app.get("/shorten/:code/stats", async (req, res) => {
   });
 });
 
-// 🟢 UPDATED: Redirect route with Password & Expiry handling
+// 4. Redirect Route: Handle redirection when visiting a short link
 app.get("/:code", async (req, res) => {
   const url = await Url.findOne({ shortCode: req.params.code });
 
@@ -256,6 +255,3 @@ app.delete("/shorten/:code", async (req, res) => {
   if (!deleted) return res.status(404).json({ error: "Not found" });
   res.status(204).send();
 });
-
-// Export the Express API for Vercel Serverless Functions
-module.exports = app;
