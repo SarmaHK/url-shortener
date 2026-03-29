@@ -258,5 +258,11 @@ app.delete("/shorten/:code", async (req, res) => {
   res.status(204).send();
 });
 
+// Global Error Handler to return JSON instead of HTML on crash
+app.use((err, req, res, next) => {
+  console.error("Backend Error:", err);
+  res.status(500).json({ error: err.message || "Internal Server Error" });
+});
+
 // Export the Express API for Vercel
 module.exports = app;
