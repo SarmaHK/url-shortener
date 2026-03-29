@@ -48,6 +48,11 @@ document.addEventListener('DOMContentLoaded', () => {
         body: JSON.stringify({ url })
       });
 
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        throw new Error(`Server returned an invalid response (Status: ${response.status}). This usually means the backend crashed or timed out.`);
+      }
+
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Failed to fetch preview');
 
@@ -89,6 +94,11 @@ document.addEventListener('DOMContentLoaded', () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url, customCode, password, expiresIn })
       });
+
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        throw new Error(`Server returned an invalid response (Status: ${response.status}). This usually means the database failed to connect or the backend timed out.`);
+      }
 
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Failed to shorten URL');
