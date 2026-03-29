@@ -1,10 +1,24 @@
 const express = require("express");
 const mongoose = require("mongoose");
 const path = require("path");
+const axios = require("axios");
+const cheerio = require("cheerio");
+const bcrypt = require("bcryptjs");
+const rateLimit = require("express-rate-limit");
 
 const app = express();
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
+
+// Global Rate Limiter: Prevent spam & abuse
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 10, // Limit each IP to 10 requests per windowMs
+  standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
+  legacyHeaders: false, // Disable the `X-RateLimit-*` headers
+  message: { error: "Too many requests created from this IP, please try again after 15 minutes." }
+});
+app.use(limiter);
 
 // connect database
 mongoose.connect("mongodb+srv://sarmahk:2307@cluster0.qvy8cbw.mongodb.net/urlShortener?retryWrites=true&w=majority")
@@ -16,75 +30,128 @@ app.listen(3000, () => {
   console.log("Server running on port 3000");
 });
 
-const Url = require("./models/Url"); // Import the Url model to interact with the URLs collection in the database
-const { nanoid } = require("nanoid"); // Import the nanoid library to generate unique short codes for the URLs
-
+const Url = require("./models/Url"); // Import the Url model
+const { nanoid } = require("nanoid"); // Import the nanoid library
 
 function generateReadableCode(url) {
   try {
     const parsed = new URL(url);
-
-    // get domain name
     let name = parsed.hostname.replace("www.", "").split(".")[0];
-
-    // clean + shorten
     name = name.substring(0, 5);
-
     return name + "-" + nanoid(4);
   } catch {
     return nanoid(6);
   }
 }
 
-// Define a POST route at /shorten to handle URL shortening requests.
-// This route validates the provided URL, generates a unique short code, and saves the original URL along with the short code in the database. 
-// It then returns the newly created URL entry in the response
-app.post("/shorten", async (req, res) => {
-  const { url, customCode } = req.body; // Extract the original long URL from the request body
+// 🟢 NEW: Preview route using Axios + Cheerio
+app.post("/preview", async (req, res) => {
+  const { url } = req.body;
 
-  if (!url) {
-    return res.status(400).json({ error: "URL is required" }); // If the URL is not provided in the request body, return a 400 Bad Request response with an error message
+  if (!url) return res.status(400).json({ error: "URL is required" });
+  const valid = /^https?:\/\/.+/;
+  if (!valid.test(url)) return res.status(400).json({ error: "Invalid URL" });
+
+  try {
+    const { data } = await axios.get(url, { headers: { 'User-Agent': 'Mozilla/5.0' } });
+    const $ = cheerio.load(data);
+    const title = $("title").text() || $("meta[property='og:title']").attr("content") || "No title found";
+    const description = $("meta[name='description']").attr("content") || $("meta[property='og:description']").attr("content") || "";
+
+    res.json({ title, description });
+  } catch (error) {
+    res.status(500).json({ error: "Failed to fetch URL preview" });
   }
+});
+
+// 🟢 UPDATED: Shorten route with Expiry, Password, and Deduplication
+app.post("/shorten", async (req, res) => {
+  const { url, customCode, password, expiresIn } = req.body;
+
+  if (!url) return res.status(400).json({ error: "URL is required" });
 
   const valid = /^https?:\/\/.+/;
-  if (!valid.test(url)) {
-    return res.status(400).json({ error: "Invalid URL" });
+  if (!valid.test(url)) return res.status(400).json({ error: "Invalid URL" });
+
+  // Reuse Existing URL (if no extra parameters provided)
+  if (!customCode && !password && !expiresIn) {
+    const existingUrl = await Url.findOne({ url, password: null, expiresAt: null });
+    if (existingUrl) {
+      return res.status(200).json(existingUrl); // Return 200 OK for existing, not 201 Created
+    }
   }
 
   let shortCode;
-
   if (customCode) {
     const exists = await Url.findOne({ shortCode: customCode });
-
-    if (exists) {
-      return res.status(400).json({ error: "Custom code already taken" });
-    }
-
+    if (exists) return res.status(400).json({ error: "Custom code already taken" });
     shortCode = customCode;
   } else {
     do {
-      // Generate a unique short code combining the domain name and random nanoid letters
       shortCode = generateReadableCode(url);
     } while (await Url.findOne({ shortCode }));
   }
 
+  // Handle Password hashing
+  let hashedPassword = null;
+  if (password && password.trim() !== "") {
+    hashedPassword = await bcrypt.hash(password, 10);
+  }
+
+  // Handle Expiration
+  let expiresAt = null;
+  if (expiresIn && parseInt(expiresIn) > 0) {
+    expiresAt = new Date(Date.now() + parseInt(expiresIn) * 1000);
+  }
+
   const newUrl = await Url.create({
     url,
-    shortCode
+    shortCode,
+    password: hashedPassword,
+    expiresAt
   });
 
   res.status(201).json(newUrl);
 });
 
+// 🟢 Define a GET route at /shorten/:code/stats
+app.get("/shorten/:code/stats", async (req, res) => {
+  const url = await Url.findOne({ shortCode: req.params.code });
+  if (!url) return res.status(404).json({ error: "Not found" });
 
-// Define a GET route at /shorten/:code to retrieve the original long URL based on the provided short code in the URL parameters
-// Define a GET route at /:code to handle redirection to the original long URL based on the provided short code in the URL parameters. 
-// This route also increments the access count for the URL each time it is accessed
+  res.json({
+    url: url.url,
+    shortCode: url.shortCode,
+    accessCount: url.accessCount,
+    expiresAt: url.expiresAt,
+    isProtected: !!url.password
+  });
+});
+
+// 🟢 UPDATED: Redirect route with Password & Expiry handling
 app.get("/:code", async (req, res) => {
   const url = await Url.findOne({ shortCode: req.params.code });
 
   if (!url) {
     return res.status(404).send("Not found");
+  }
+
+  // Check Expiration
+  if (url.expiresAt && url.expiresAt < new Date()) {
+    return res.status(410).send("410 Gone - This URL has expired.");
+  }
+
+  // Check Password
+  if (url.password) {
+    const inputPassword = req.query.password;
+    if (!inputPassword) {
+      return res.status(403).send("403 Forbidden - Password required! Add ?password=YOUR_PASSWORD to the URL.");
+    }
+
+    const isMatch = await bcrypt.compare(inputPassword, url.password);
+    if (!isMatch) {
+      return res.status(403).send("403 Forbidden - Incorrect password.");
+    }
   }
 
   url.accessCount++; // increase count
@@ -93,15 +160,11 @@ app.get("/:code", async (req, res) => {
   res.redirect(url.url); // redirect to the original URL
 });
 
-
-// Define a PUT route at /shorten/:code to update the original long URL associated with the provided short code in the URL parameters
+// Define a PUT route to update original URL
 app.put("/shorten/:code", async (req, res) => {
   const { url } = req.body;
-
   const valid = /^https?:\/\/.+/;
-  if (url && !valid.test(url)) {
-    return res.status(400).json({ error: "Invalid URL format" });
-  }
+  if (url && !valid.test(url)) return res.status(400).json({ error: "Invalid URL format" });
 
   const updated = await Url.findOneAndUpdate(
     { shortCode: req.params.code },
@@ -109,38 +172,13 @@ app.put("/shorten/:code", async (req, res) => {
     { new: true }
   );
 
-  if (!updated) {
-    return res.status(404).json({ error: "Not found" });
-  }
-
+  if (!updated) return res.status(404).json({ error: "Not found" });
   res.json(updated);
 });
 
-// Define a DELETE route at /shorten/:code to delete the URL entry associated with the provided short code in the URL parameters
+// Define a DELETE route
 app.delete("/shorten/:code", async (req, res) => {
-  const deleted = await Url.findOneAndDelete({
-    shortCode: req.params.code
-  });
-
-  if (!deleted) {
-    return res.status(404).json({ error: "Not found" });
-  }
-
+  const deleted = await Url.findOneAndDelete({ shortCode: req.params.code });
+  if (!deleted) return res.status(404).json({ error: "Not found" });
   res.status(204).send();
-});
-
-
-// Define a GET route at /shorten/:code/stats to retrieve the statistics (original URL, short code, and access count) for the provided short code in the URL parameters
-app.get("/shorten/:code/stats", async (req, res) => {
-  const url = await Url.findOne({ shortCode: req.params.code });
-
-  if (!url) {
-    return res.status(404).json({ error: "Not found" });
-  }
-
-  res.json({
-    url: url.url,
-    shortCode: url.shortCode,
-    accessCount: url.accessCount
-  });
 });
