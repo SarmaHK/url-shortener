@@ -5,8 +5,12 @@ const axios = require("axios");
 const cheerio = require("cheerio");
 const bcrypt = require("bcrypt");
 const rateLimit = require("express-rate-limit");
+const helmet = require("helmet");
+require("dotenv").config(); // Load environment variables from .env file
 
 const app = express();
+app.use(helmet()); // Set security-related HTTP headers
+app.set("trust proxy", 1); // Allow express-rate-limit to work behind Vercel Proxy
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
@@ -119,7 +123,16 @@ app.post("/preview", async (req, res) => {
   if (!valid.test(url)) return res.status(400).json({ error: "Invalid URL" });
 
   try {
-    const { data } = await axios.get(url, { headers: { 'User-Agent': 'Mozilla/5.0' } });
+    const parsedUrl = new URL(url);
+    const hostname = parsedUrl.hostname;
+    // SSRF Prevention: Block internal and loopback IP addresses 
+    const isLocal = /^(localhost|127\.\d+\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[0-1])\.\d+\.\d+|192\.168\.\d+\.\d+|169\.254\.\d+\.\d+|0\.0\.0\.0|::1)$/i.test(hostname);
+    
+    if (isLocal) {
+      return res.status(403).json({ error: "Internal URLs are strictly prohibited." });
+    }
+
+    const { data } = await axios.get(url, { headers: { 'User-Agent': 'Mozilla/5.0' }, timeout: 3000 });
     const $ = cheerio.load(data);
     const title = $("title").text() || $("meta[property='og:title']").attr("content") || "No title found";
     const description = $("meta[name='description']").attr("content") || $("meta[property='og:description']").attr("content") || "";
@@ -238,28 +251,7 @@ app.get("/:code", async (req, res) => {
   res.redirect(url.url); // redirect to the original URL
 });
 
-// Define a PUT route to update original URL
-app.put("/shorten/:code", async (req, res) => {
-  const { url } = req.body;
-  const valid = /^https?:\/\/.+/;
-  if (url && !valid.test(url)) return res.status(400).json({ error: "Invalid URL format" });
-
-  const updated = await Url.findOneAndUpdate(
-    { shortCode: req.params.code },
-    { url },
-    { new: true }
-  );
-
-  if (!updated) return res.status(404).json({ error: "Not found" });
-  res.json(updated);
-});
-
-// Define a DELETE route
-app.delete("/shorten/:code", async (req, res) => {
-  const deleted = await Url.findOneAndDelete({ shortCode: req.params.code });
-  if (!deleted) return res.status(404).json({ error: "Not found" });
-  res.status(204).send();
-});
+// Removed unsafe PUT and DELETE routes protecting against unauthenticated overwrites.
 
 // Global Error Handler to return JSON instead of HTML on crash
 app.use((err, req, res, next) => {

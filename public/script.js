@@ -110,11 +110,16 @@ document.addEventListener('DOMContentLoaded', () => {
       // Build details section
       resultDetails.innerHTML = '';
       if (password) {
-        resultDetails.innerHTML += `<div>🔒 <strong>Protected:</strong> Link requires password: <code>${password}</code></div>`;
+        const pwDiv = document.createElement('div');
+        pwDiv.innerHTML = `🔒 <strong>Protected:</strong> Link requires password: <code></code>`;
+        pwDiv.querySelector('code').textContent = password; // Prevents XSS injection
+        resultDetails.appendChild(pwDiv);
       }
       if (data.expiresAt) {
+        const dateDiv = document.createElement('div');
         const d = new Date(data.expiresAt);
-        resultDetails.innerHTML += `<div>⏳ <strong>Expires:</strong> ${d.toLocaleString()}</div>`;
+        dateDiv.innerHTML = `⏳ <strong>Expires:</strong> ${d.toLocaleString()}`;
+        resultDetails.appendChild(dateDiv);
       }
 
       resultArea.classList.remove('hidden');
