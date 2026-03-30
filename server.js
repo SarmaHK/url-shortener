@@ -15,63 +15,6 @@ app.set("trust proxy", 1); // Allow express-rate-limit to work behind Vercel Pro
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// --- Google Safe Browsing Integration ---
-// Read API key from environment variables
-const SAFE_BROWSING_API_KEY = process.env.SAFE_BROWSING_API_KEY;
-
-/**
- * Checks a URL against the Google Safe Browsing API.
- * @param {string} url - The URL to check
- * @returns {Promise<string>} - "safe", "malware", "phishing", "unwanted", or "unknown"
- */
-async function checkSafeBrowsing(url) {
-  // If no API key is set, log and return unknown to prevent crashing
-  if (!SAFE_BROWSING_API_KEY) {
-    console.warn("⚠️ Missing SAFE_BROWSING_API_KEY in .env");
-    return "unknown";
-  }
-
-  const endpoint = `https://safebrowsing.googleapis.com/v4/threatMatches:find?key=${SAFE_BROWSING_API_KEY}`;
-
-  const payload = {
-    client: {
-      clientId: "url-shortener",
-      clientVersion: "1.0.0"
-    },
-    threatInfo: {
-      threatTypes: [
-        "MALWARE",
-        "SOCIAL_ENGINEERING",
-        "UNWANTED_SOFTWARE"
-      ],
-      platformTypes: ["ANY_PLATFORM"],
-      threatEntryTypes: ["URL"],
-      threatEntries: [{ url }] // Send the URL to evaluate
-    }
-  };
-
-  try {
-    // Send POST request with a 2000ms timeout
-    const response = await axios.post(endpoint, payload, { timeout: 2000 });
-    const matches = response.data.matches;
-
-    // If Google finds a match, determine the threat type
-    if (matches && matches.length > 0) {
-      const threatType = matches[0].threatType;
-
-      if (threatType === "MALWARE") return "malware";
-      if (threatType === "SOCIAL_ENGINEERING") return "phishing";
-      if (threatType === "UNWANTED_SOFTWARE") return "unwanted";
-    }
-
-    // No matches mean the URL is safe
-    return "safe";
-  } catch (error) {
-    // Handle API errors gracefully
-    console.error("Safe Browsing API Error:", error.message);
-    return "unknown";
-  }
-}
 /**
  * Custom Safety Check: Scans URL and its content for 18+ or spam material.
  * @param {string} url - The URL to check
@@ -133,19 +76,36 @@ const limiter = rateLimit({
 app.use(limiter);
 
 // --- DATABASE CONNECTION ---
+// Mongoose Connection Management for Serverless
 const dbUri = process.env.MONGODB_URI;
+mongoose.set("bufferCommands", false); // Fail fast instead of buffering if DB is disconnected
 
-if (!dbUri) {
-  console.error("❌ CRITICAL ERROR: MONGODB_URI is not defined in environment variables!");
-  console.error("If you are on Vercel, please run: npx vercel env push");
+let isConnected = false;
+
+async function connectToDatabase() {
+  if (isConnected) return;
+
+  if (!dbUri) {
+    console.error("❌ CRITICAL ERROR: MONGODB_URI is not defined!");
+    return;
+  }
+
+  try {
+    const db = await mongoose.connect(dbUri, {
+      serverSelectionTimeoutMS: 5000, // Timeout after 5 seconds instead of hanging
+    });
+    isConnected = db.connections[0].readyState === 1;
+    console.log("✅ DB Connected Successfully");
+  } catch (err) {
+    console.error("❌ DB Connection Error:", err.message);
+  }
 }
 
-mongoose.connect(dbUri || "mongodb://localhost:27017/urlShortener")
-  .then(() => console.log("✅ DB Connected Successfully"))
-  .catch(err => {
-    console.error("❌ DB Connection Error:", err.message);
-    if (!dbUri) console.error("Hint: You are likely missing your .env variables on Vercel.");
-  });
+// Middleware to ensure DB connection
+app.use(async (req, res, next) => {
+  await connectToDatabase();
+  next();
+});
 
 // --- SERVER STARTUP ---
 const PORT = process.env.PORT || 5000;
@@ -210,11 +170,6 @@ app.post("/shorten", async (req, res) => {
   const valid = /^https?:\/\/.+/;
   if (!valid.test(url)) return res.status(400).json({ error: "Invalid URL" });
 
-  // 🛡 Google Safe Browsing Check (Malware/Phishing)
-  const safetyStatus = await checkSafeBrowsing(url);
-  if (safetyStatus !== "safe" && safetyStatus !== "unknown") {
-    return res.status(403).json({ error: "Security Alert: This URL is flagged as unsafe." });
-  }
 
   // 🛡 Adult & Spam Content Check (Custom Filter)
   const contentSafety = await checkContentSafety(url);
