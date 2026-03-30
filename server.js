@@ -7,6 +7,7 @@ const bcrypt = require("bcrypt");
 const rateLimit = require("express-rate-limit");
 const helmet = require("helmet");
 require("dotenv").config(); // Load environment variables from .env file
+const safetyConfig = require("./utils/safetyConfig"); // Import safety filter rules
 
 const app = express();
 app.use(helmet()); // Set security-related HTTP headers
@@ -69,6 +70,54 @@ async function checkSafeBrowsing(url) {
     // Handle API errors gracefully
     console.error("Safe Browsing API Error:", error.message);
     return "unknown";
+  }
+}
+/**
+ * Custom Safety Check: Scans URL and its content for 18+ or spam material.
+ * @param {string} url - The URL to check
+ * @returns {Promise<{safe: boolean, reason?: string}>}
+ */
+async function checkContentSafety(url) {
+  try {
+    const parsedUrl = new URL(url);
+    const hostname = parsedUrl.hostname.toLowerCase();
+
+    // 1. Blocked Domains Check
+    if (safetyConfig.blockedDomains.some(d => hostname.includes(d))) {
+      return { safe: false, reason: "Domain is on the restricted list." };
+    }
+
+    // 2. Blocked TLDs Check
+    if (safetyConfig.blockedTLDs.some(tld => hostname.endsWith(tld))) {
+      return { safe: false, reason: `Links with ${hostname.split('.').pop()} extension are not allowed.` };
+    }
+
+    // 3. Simple Keyword Check in URL string
+    const urlString = url.toLowerCase();
+    if (safetyConfig.blockedKeywords.some(word => urlString.includes(word))) {
+      return { safe: false, reason: "URL contains restricted keywords." };
+    }
+
+    // 4. Deep Content Scan (Title & Meta Tags)
+    try {
+      const { data } = await axios.get(url, { 
+        headers: { 'User-Agent': 'Mozilla/5.0' }, 
+        timeout: 4000 // 4 seconds limit for safety check
+      });
+      const $ = cheerio.load(data);
+      const pageText = ($("title").text() + " " + ($("meta[name='description']").attr("content") || "")).toLowerCase();
+      
+      if (safetyConfig.blockedKeywords.some(word => pageText.includes(word))) {
+        return { safe: false, reason: "Website content is flagged as inappropriate or spam." };
+      }
+    } catch (fetchError) {
+      // If we can't reach the site, we still allow the shortening (unless it's a known bad domain)
+      console.warn("Safety Scan skipped (Site unreachable):", fetchError.message);
+    }
+
+    return { safe: true };
+  } catch (err) {
+    return { safe: false, reason: "Invalid URL provided." };
   }
 }
 // ----------------------------------------
@@ -161,13 +210,16 @@ app.post("/shorten", async (req, res) => {
   const valid = /^https?:\/\/.+/;
   if (!valid.test(url)) return res.status(400).json({ error: "Invalid URL" });
 
-  // 🛡 Google Safe Browsing Check
+  // 🛡 Google Safe Browsing Check (Malware/Phishing)
   const safetyStatus = await checkSafeBrowsing(url);
-
-  // If the result is anything but "safe", we block it.
-  // We allow "unknown" (API failures) so the server doesn't break if Google is down.
   if (safetyStatus !== "safe" && safetyStatus !== "unknown") {
-    return res.status(403).json({ error: "This URL is not allowed." });
+    return res.status(403).json({ error: "Security Alert: This URL is flagged as unsafe." });
+  }
+
+  // 🛡 Adult & Spam Content Check (Custom Filter)
+  const contentSafety = await checkContentSafety(url);
+  if (!contentSafety.safe) {
+    return res.status(403).json({ error: contentSafety.reason || "This URL is not allowed due to safety policies." });
   }
 
   // Reuse Existing URL (if no extra parameters provided)
