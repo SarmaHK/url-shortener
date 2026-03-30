@@ -237,10 +237,13 @@ app.get(["/favicon.ico", "/favicon.png"], (req, res) => res.status(204).end());
 
 // 4. Redirect Route: Handle redirection when visiting a short link
 app.get("/:code", async (req, res) => {
-  const url = await Url.findOne({ shortCode: req.params.code });
+  // Split the code from the password if provided in format: code=pass
+  let [code, urlPassword] = req.params.code.split('=');
+  
+  const url = await Url.findOne({ shortCode: code });
 
   if (!url) {
-    return res.status(404).send("Not found");
+    return res.status(404).sendFile(path.join(__dirname, 'public', 'index.html'));
   }
 
   // Check Expiration
@@ -250,14 +253,15 @@ app.get("/:code", async (req, res) => {
 
   // Check Password
   if (url.password) {
-    const inputPassword = req.query.password;
+    const inputPassword = urlPassword || req.query.password;
+    
     if (!inputPassword) {
-      return res.status(403).send("403 Forbidden - Password required! Add ?password=YOUR_PASSWORD to the URL.");
+      return res.status(403).sendFile(path.join(__dirname, 'public', 'password.html'));
     }
 
     const isMatch = await bcrypt.compare(inputPassword, url.password);
     if (!isMatch) {
-      return res.status(403).send("403 Forbidden - Incorrect password.");
+      return res.status(403).sendFile(path.join(__dirname, 'public', 'password.html'));
     }
   }
 
@@ -266,6 +270,7 @@ app.get("/:code", async (req, res) => {
 
   res.redirect(url.url); // redirect to the original URL
 });
+
 
 // Removed unsafe PUT and DELETE routes protecting against unauthenticated overwrites.
 

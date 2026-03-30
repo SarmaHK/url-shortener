@@ -104,23 +104,54 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!response.ok) throw new Error(data.error || 'Failed to shorten URL');
 
       const fullShortUrl = `${window.location.protocol}//${window.location.host}/${data.shortCode}`;
-      shortUrlAnchor.href = password ? `${fullShortUrl}?password=${password}` : fullShortUrl;
-      shortUrlAnchor.textContent = fullShortUrl;
       
-      // Build details section
+      // Build details section and handle URL formatting
       resultDetails.innerHTML = '';
+      
       if (password) {
+        // Protected Link Format: code=password
+        const protectedUrl = `${fullShortUrl}=${password}`;
+        const maskedUrl = `${fullShortUrl}=xxx`;
+        
+        shortUrlAnchor.href = protectedUrl;
+        shortUrlAnchor.textContent = maskedUrl;
+        
         const pwDiv = document.createElement('div');
-        pwDiv.innerHTML = `🔒 <strong>Protected:</strong> Link requires password: <code></code>`;
-        pwDiv.querySelector('code').textContent = password; // Prevents XSS injection
+        pwDiv.className = 'password-toggle-container';
+        pwDiv.innerHTML = `
+          <span>🔒 Protected</span>
+          <button type="button" id="revealBtn" class="toggle-btn">Reveal Password</button>
+        `;
         resultDetails.appendChild(pwDiv);
+
+        // Toggle logic for the xxx masking
+        const revealBtn = pwDiv.querySelector('#revealBtn');
+        revealBtn.addEventListener('click', () => {
+          if (shortUrlAnchor.textContent.endsWith('=xxx')) {
+            shortUrlAnchor.textContent = protectedUrl;
+            revealBtn.textContent = 'Hide Password';
+          } else {
+            shortUrlAnchor.textContent = maskedUrl;
+            revealBtn.textContent = 'Reveal Password';
+          }
+        });
+      } else {
+        // Public Link
+        shortUrlAnchor.href = fullShortUrl;
+        shortUrlAnchor.textContent = fullShortUrl;
+        
+        const publicDiv = document.createElement('div');
+        publicDiv.innerHTML = `<span class="status-badge public">🔓 Public Link</span>`;
+        resultDetails.appendChild(publicDiv);
       }
+
       if (data.expiresAt) {
         const dateDiv = document.createElement('div');
         const d = new Date(data.expiresAt);
         dateDiv.innerHTML = `⏳ <strong>Expires:</strong> ${d.toLocaleString()}`;
         resultDetails.appendChild(dateDiv);
       }
+
 
       resultArea.classList.remove('hidden');
       
@@ -144,8 +175,8 @@ document.addEventListener('DOMContentLoaded', () => {
   // Handle COPY button
   copyBtn.addEventListener('click', async () => {
     try {
-      // Copy just the URL, not the password attachment if we appended it to href for convenience
-      await navigator.clipboard.writeText(shortUrlAnchor.textContent);
+      // Copy the full URL with password attached for sharing
+      await navigator.clipboard.writeText(shortUrlAnchor.href);
       const originalText = copyBtn.textContent;
       copyBtn.textContent = 'Copied!';
       copyBtn.style.backgroundColor = '#dcfce7';

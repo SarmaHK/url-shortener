@@ -291,3 +291,57 @@ button {
     flex-direction: column;
   }
 }
+
+/* --- Unlock Page Specific Styles --- */
+.unlock-card {
+  text-align: center;
+}
+
+.lock-icon {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+  filter: drop-shadow(0 4px 6px rgba(0,0,0,0.1));
+}
+
+.footer-link {
+  margin-top: 2rem;
+  font-size: 0.9rem;
+}
+
+.footer-link a {
+  color: var(--primary);
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.footer-link a:hover {
+  text-decoration: underline;
+}
+
+/* --- Password Toggle Styles --- */
+.password-toggle-container {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+  padding: 0.25rem 0.5rem;
+  background: rgba(255,255,255,0.5);
+  border-radius: 6px;
+  width: fit-content;
+}
+
+.toggle-btn {
+  background: none;
+  border: none;
+  padding: 2px 6px;
+  font-size: 0.75rem;
+  color: var(--primary);
+  cursor: pointer;
+  font-weight: 700;
+  text-decoration: underline;
+}
+
+.toggle-btn:hover {
+  color: var(--primary-hover);
+}
+
