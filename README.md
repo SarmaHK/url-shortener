@@ -1,6 +1,6 @@
 # 🔗 URL Shortener
 
-A high-performance, full-stack URL shortener built with **Node.js, Express, and MongoDB**, featuring a beautiful glassmorphism UI, advanced security, link expiration, password protection, and automated Google Safe Browsing checks to prevent malicious links.
+A high-performance, full-stack URL shortener built with **Node.js, Express, and MongoDB**, featuring a beautiful glassmorphism UI, advanced security, link expiration, and password protection.
 
 Perfect for personal use, marketing campaigns, or as a polished SaaS MVP.
 
@@ -11,7 +11,6 @@ Perfect for personal use, marketing campaigns, or as a polished SaaS MVP.
 - **🎨 Beautiful UI**: A fully responsive, modern frontend designed with glassmorphism and smooth animations.
 - **🛡️ Secure Processing**:
   - Validates URLs prior to processing.
-  - Automatically checks links against **Google Safe Browsing API** to block phishing and malware.
   - Built-in **Rate Limiting** to prevent spam and abuse.
 - **🔐 Password Protection**: Secure your shortened URLs so only authorized users with the password can access the destination.
 - **⏳ Link Expiration**: Set links to automatically expire after 1 hour, 1 day, 7 days, or a custom amount of time.
@@ -36,7 +35,6 @@ Perfect for personal use, marketing campaigns, or as a polished SaaS MVP.
 ### Prerequisites
 - [Node.js](https://nodejs.org/) (v16 or higher)
 - A [MongoDB database](https://www.mongodb.com/atlas/database) (Local or Cloud/Atlas)
-- A *Google Safe Browsing API Key* (Optional, but recommended)
 
 ### 1. Clone the Repository
 ```bash
@@ -54,7 +52,6 @@ Create a `.env` file in the root directory and add the following:
 ```env
 PORT=5000
 MONGODB_URI=mongodb+srv://<username>:<password>@cluster.mongodb.net/urlShortener
-SAFE_BROWSING_API_KEY=your_google_api_key_here
 ```
 
 ### 4. Run Locally
@@ -85,7 +82,7 @@ All requests and responses use `application/json` format.
 This project is already pre-configured for Vercel!
 
 1. Import your GitHub repository into [Vercel](https://vercel.com/new).
-2. Go to **Settings > Environment Variables** and add your `MONGODB_URI` and `SAFE_BROWSING_API_KEY`.
+2. Go to **Settings > Environment Variables** and add your `MONGODB_URI`.
 3. *(Important!)* If using MongoDB Atlas, make sure to add `0.0.0.0/0` in your MongoDB **Network Access** settings to allow Vercel's Edge network to communicate with your database.
 4. Click **Deploy**. Vercel will automatically handle the routing and serve your Express API and static frontend files perfectly.
 
