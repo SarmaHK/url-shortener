@@ -1,4 +1,4 @@
-# 🔗 Premium URL Shortener
+# 🔗 URL Shortener
 
 A high-performance, full-stack URL shortener built with **Node.js, Express, and MongoDB**, featuring a beautiful glassmorphism UI, advanced security, link expiration, password protection, and automated Google Safe Browsing checks to prevent malicious links.
 
