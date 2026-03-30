@@ -76,18 +76,27 @@ async function checkSafeBrowsing(url) {
 // Global Rate Limiter: Prevent spam & abuse
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 10, // Limit each IP to 10 requests per windowMs
+  max: 100, // Limit each IP to 100 requests per windowMs
   standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
   legacyHeaders: false, // Disable the `X-RateLimit-*` headers
   message: { error: "Too many requests created from this IP, please try again after 15 minutes." }
 });
 app.use(limiter);
 
-// connect database
-const dbUri = process.env.MONGODB_URI || "mongodb://localhost:27017/urlShortener";
-mongoose.connect(dbUri)
-  .then(() => console.log("DB Connected"))
-  .catch(err => console.log(err));
+// --- DATABASE CONNECTION ---
+const dbUri = process.env.MONGODB_URI;
+
+if (!dbUri) {
+  console.error("❌ CRITICAL ERROR: MONGODB_URI is not defined in environment variables!");
+  console.error("If you are on Vercel, please run: npx vercel env push");
+}
+
+mongoose.connect(dbUri || "mongodb://localhost:27017/urlShortener")
+  .then(() => console.log("✅ DB Connected Successfully"))
+  .catch(err => {
+    console.error("❌ DB Connection Error:", err.message);
+    if (!dbUri) console.error("Hint: You are likely missing your .env variables on Vercel.");
+  });
 
 // --- SERVER STARTUP ---
 const PORT = process.env.PORT || 5000;
@@ -127,7 +136,7 @@ app.post("/preview", async (req, res) => {
     const hostname = parsedUrl.hostname;
     // SSRF Prevention: Block internal and loopback IP addresses 
     const isLocal = /^(localhost|127\.\d+\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[0-1])\.\d+\.\d+|192\.168\.\d+\.\d+|169\.254\.\d+\.\d+|0\.0\.0\.0|::1)$/i.test(hostname);
-    
+
     if (isLocal) {
       return res.status(403).json({ error: "Internal URLs are strictly prohibited." });
     }
