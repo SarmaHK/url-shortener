@@ -10,6 +10,8 @@ services:
       - PORT=5000
       - NODE_ENV=production
       - MONGODB_URI=${MONGODB_URI}
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4318
+      - OTEL_SERVICE_NAME=url-shortener-app
     logging:
       driver: awslogs
       options:
@@ -39,3 +41,25 @@ services:
         awslogs-group: /ec2/url-shortener
         awslogs-create-group: "true"
         awslogs-stream: nginx
+
+  otel-collector:
+    image: signoz/signoz-otel-collector:0.111.9
+    container_name: url-shortener-otel-collector
+    command: ["--config=/etc/otel-collector-config.yaml"]
+    volumes:
+      - ./otel-collector-config.yaml:/etc/otel-collector-config.yaml:ro
+    environment:
+      # We will replace this with your actual SigNoz EC2 Public IP in Phase 4!
+      - SIGNOZ_ENDPOINT=54.179.83.194:4317
+    ports:
+      - "4317:4317" # OTLP gRPC
+      - "4318:4318" # OTLP HTTP
+      - "13133:13133" # Health Check
+    restart: unless-stopped
+    logging:
+      driver: awslogs
+      options:
+        awslogs-region: us-east-1
+        awslogs-group: /ec2/url-shortener
+        awslogs-create-group: "true"
+        awslogs-stream: otel-collector

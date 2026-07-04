@@ -1,0 +1,74 @@
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  # Memory limiter to prevent the collector from crashing the EC2 instance (Production Grade)
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 150
+    spike_limit_mib: 30
+  
+  # Batch processor for better network efficiency (Production Grade)
+  batch:
+    send_batch_size: 1000
+    timeout: 10s
+    send_batch_max_size: 1000
+
+  # Rich resource attributes injected dynamically (Production Grade)
+  resource:
+    attributes:
+      - key: environment
+        value: production
+        action: insert
+      - key: project
+        value: url-shortener
+        action: insert
+
+exporters:
+  # Debug exporter to verify data flow locally before hitting the backend
+  debug:
+    verbosity: detailed
+
+  # Secure exporter pointing to the future SigNoz backend
+  otlp:
+    # Uses environment variable expansion!
+    endpoint: ${env:SIGNOZ_ENDPOINT}
+    tls:
+      insecure: true
+    # Retry logic (Production Grade)
+    retry_on_failure:
+      enabled: true
+      initial_interval: 5s
+      max_interval: 30s
+      max_elapsed_time: 300s
+    # Sending queue (Production Grade)
+    sending_queue:
+      enabled: true
+      num_consumers: 2
+      queue_size: 1000
+
+extensions:
+  # Health check endpoint for external monitoring
+  health_check:
+    endpoint: 0.0.0.0:13133
+
+service:
+  extensions: [health_check]
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, resource, batch]
+      exporters: [debug, otlp]
+    metrics:
+      receivers: [otlp]
+      processors: [memory_limiter, resource, batch]
+      exporters: [debug, otlp]
+    logs:
+      receivers: [otlp]
+      processors: [memory_limiter, resource, batch]
+      exporters: [debug, otlp]
