@@ -1,22 +1,20 @@
-# 🔗 URL Shortener
+# 🔗 URL Shortener (with OpenTelemetry & SigNoz)
 
 A high-performance, full-stack URL shortener built with **Node.js, Express, and MongoDB**, featuring a beautiful glassmorphism UI, advanced security, link expiration, and password protection.
 
-Perfect for personal use, marketing campaigns, or as a polished SaaS MVP.
+This project is fully containerized using **Docker** and instrumented with **OpenTelemetry**, providing production-grade observability via **SigNoz** for distributed tracing, metrics, and latency monitoring.
 
 ---
 
 ## ✨ Key Features
 
 - **🎨 Beautiful UI**: A fully responsive, modern frontend designed with glassmorphism and smooth animations.
-- **🛡️ Secure Processing**:
-  - Validates URLs prior to processing.
-  - Built-in **Rate Limiting** to prevent spam and abuse.
+- **🛡️ Secure Processing**: Built-in Rate Limiting and URL validation to prevent spam and abuse.
 - **🔐 Password Protection**: Secure your shortened URLs so only authorized users with the password can access the destination.
-- **⏳ Link Expiration**: Set links to automatically expire after 1 hour, 1 day, 7 days, or a custom amount of time.
-- **✨ Custom & Smart Aliases**: Users can define their own `customCode` (e.g., `/my-promo`), or the system will automatically generate a highly readable code based on the target website's domain (e.g., `googl-abcd`).
-- **📊 Link Analytics**: Built-in access tracking. The API tallies clicks every time a short link is used.
-- **🚀 Serverless Ready**: Designed, structured, and optimized out-of-the-box for seamless deployment on **Vercel** (`@vercel/node`).
+- **⏳ Link Expiration**: Set links to automatically expire after 1 hour, 1 day, 7 days, or a custom timeframe.
+- **✨ Smart Aliases**: Users can define their own `customCode` or the system generates one automatically.
+- **📊 OpenTelemetry Observability**: Fully instrumented backend (MongoDB and Express tracing). A local OpenTelemetry Collector sidecar batches and securely transmits telemetry to a SigNoz APM dashboard.
+- **🐳 Dockerized**: Deploys seamlessly using Docker Compose with an NGINX reverse proxy.
 
 ---
 
@@ -25,40 +23,43 @@ Perfect for personal use, marketing campaigns, or as a polished SaaS MVP.
 - **Frontend**: Vanilla HTML, CSS, JavaScript
 - **Backend**: Node.js, Express.js
 - **Database**: MongoDB (via Mongoose)
+- **Observability**: OpenTelemetry (`@opentelemetry/auto-instrumentations-node`), SigNoz
+- **Infrastructure**: Docker, Docker Compose, NGINX
 - **Security**: `bcrypt` (password hashing), `helmet` (HTTP headers), `express-rate-limit` (DDoS protection)
-- **Utilities**: `nanoid` (unique IDs), `axios` & `cheerio` (link preview scraping)
 
 ---
 
-## 🚀 Getting Started
+## 🚀 Deployment via Docker (AWS / Local)
+
+This repository uses **Docker Compose** to spin up the Node.js application, an NGINX reverse proxy, and the OpenTelemetry Collector sidecar agent.
 
 ### Prerequisites
-- [Node.js](https://nodejs.org/) (v16 or higher)
+- [Docker & Docker Compose](https://docs.docker.com/compose/install/)
 - A [MongoDB database](https://www.mongodb.com/atlas/database) (Local or Cloud/Atlas)
+- A running **SigNoz** backend instance.
 
-### 1. Clone the Repository
-```bash
-git clone https://github.com/your-username/url-shortener.git
-cd url-shortener
-```
-
-### 2. Install Dependencies
-```bash
-npm install
-```
-
-### 3. Environment Variables
-Create a `.env` file in the root directory and add the following:
+### 1. Environment Variables
+Create a `.env` file in the root directory:
 ```env
+# Application Settings
 PORT=5000
 MONGODB_URI=mongodb+srv://<username>:<password>@cluster.mongodb.net/urlShortener
+
+# OpenTelemetry Settings
+OTEL_SERVICE_NAME=url-shortener-app
+# Replace with the IP address of your SigNoz Server
+OTEL_EXPORTER_OTLP_ENDPOINT=http://<SIGNOZ_EC2_IP>:4317
 ```
 
-### 4. Run Locally
+### 2. Configure the OTel Collector
+Update the `docker-compose.yml` file. Locate the `url-shortener-otel-collector` service and ensure `SIGNOZ_ENDPOINT` points to your SigNoz EC2 IP Address.
+
+### 3. Run the Stack
+Run the following command to build the Docker image and start all containers in detached mode:
 ```bash
-npm run dev
+docker compose up --build -d
 ```
-Visit `http://localhost:5000` in your browser.
+Visit `http://localhost` (or your EC2 public IP) in your browser.
 
 ---
 
@@ -74,17 +75,6 @@ All requests and responses use `application/json` format.
 | `GET`    | `/shorten/:code/stats`    | Retrieves analytics and statistics for a link.   | No             |
 | `PUT`    | `/shorten/:code`          | Updates the destination of an existing short URL.| No             |
 | `DELETE` | `/shorten/:code`          | Deletes a shortened URL entirely.                | No             |
-
----
-
-## ☁️ Deployment (Vercel)
-
-This project is already pre-configured for Vercel!
-
-1. Import your GitHub repository into [Vercel](https://vercel.com/new).
-2. Go to **Settings > Environment Variables** and add your `MONGODB_URI`.
-3. *(Important!)* If using MongoDB Atlas, make sure to add `0.0.0.0/0` in your MongoDB **Network Access** settings to allow Vercel's Edge network to communicate with your database.
-4. Click **Deploy**. Vercel will automatically handle the routing and serve your Express API and static frontend files perfectly.
 
 ---
 
